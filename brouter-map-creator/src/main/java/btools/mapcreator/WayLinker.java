@@ -214,7 +214,7 @@ public class WayLinker extends MapCreatorBase implements Runnable {
 
 
     // process corresponding node-file, if any
-    elevationType = 3;
+    elevationType = 7;
     File nodeFile = fileFromTemplate(wayfile, nodeTilesIn, "u5d_1");
     if (nodeFile.exists()) {
       elevationType = 1;
@@ -539,6 +539,7 @@ public class WayLinker extends MapCreatorBase implements Runnable {
         os.writeInt(fileHeaderCrcs[i55]);
       }
       os.writeByte(elevationType);
+      System.out.println("Written elevation type: " + elevationType);
 
       os.close();
 

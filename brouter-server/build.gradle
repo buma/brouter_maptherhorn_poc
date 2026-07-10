@@ -2,6 +2,10 @@ plugins {
     id 'brouter.application-conventions'
 }
 
+repositories {
+    mavenLocal()
+}
+
 application {
     mainClass.set('btools.server.BRouter')
 

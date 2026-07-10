@@ -8,10 +8,16 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import btools.util.CompactLongSet;
 import btools.util.DiffCoderDataOutputStream;
 import btools.util.FrozenLongSet;
+import org.tiles.MapterhornTileShort;
+import org.tiles.TileName;
+import org.tiles.TileUtils;
+
+import static java.lang.Math.abs;
 
 /**
  * PosUnifier does 3 steps in map-processing:
@@ -38,6 +44,15 @@ public class PosUnifier extends MapCreatorBase {
   private String srtmdir;
   private String srtmfallbackdir;
 
+  //MPT
+
+  private Map<TileName, MapterhornTileShort> mptmap;
+  private TileName lastTile;
+  private MapterhornTileShort lastMpt;
+  private String mptDir = "/home/mabu/programiranje/mapterhorn_brouter/mphorn_conv/tiles_maribor";
+  private int countAll = 0;
+  private int countMpt = 0;
+
   private CompactLongSet borderNids;
 
   public static void main(String[] args) throws Exception {
@@ -48,6 +63,8 @@ public class PosUnifier extends MapCreatorBase {
       posu.srtmmap = new HashMap<>();
       double lon = Double.parseDouble(args[1]);
       double lat = Double.parseDouble(args[2]);
+
+      posu.mptmap = new HashMap<>();
 
       NodeData n = new NodeData(1, lon, lat);
       short selev = Short.MIN_VALUE;
@@ -125,9 +142,19 @@ public class PosUnifier extends MapCreatorBase {
       srtm = srtmForNode(n.ilon, n.ilat);
     } */
 
-    ElevationRaster srtm = srtmForNode(n.ilon, n.ilat);
+    countAll++;
 
-    if (srtm != null) n.selev = srtm.getElevation(n.ilon, n.ilat);
+    var mpt = mptForNode(n.ilon, n.ilat);
+
+    if (mpt != null) {
+      countMpt++;
+      n.selev = mpt.getElevation(n.ilon, n.ilat);
+    } else {
+
+      ElevationRaster srtm = srtmForNode(n.ilon, n.ilat);
+
+      if (srtm != null) n.selev = (short) (srtm.getElevation(n.ilon, n.ilat) +400);
+    }
     findUniquePos(n);
 
     n.writeTo(nodesOutStream);
@@ -145,6 +172,7 @@ public class PosUnifier extends MapCreatorBase {
         outNodeFile.renameTo(new File(newName));
       }
     }
+    System.out.println("All:" + countAll + " MPT: " + countMpt + "ratio:" + (double) countMpt / countAll * 100.0);
     resetElevationRaster();
   }
 
@@ -189,6 +217,34 @@ public class PosUnifier extends MapCreatorBase {
     System.out.println("*** WARNING: cannot unify position for: " + n.ilon + " " + n.ilat);
   }
 
+  private MapterhornTileShort mptForNode(int ilon, int ilat) throws Exception {
+    // Reverse the latitude conversion
+    // Formula: lat = (ilat - 0.5) / 1,000,000 - 90
+    double lat = ((double) ilat - 0.5) / 1000000.0 - 90.0;
+
+    // Reverse the longitude conversion
+    // Formula: lon = (ilon - 0.5) / 1,000,000 - 180
+    double lon = ((double) ilon - 0.5) / 1000000.0 - 180.0;
+
+    var tile = TileUtils.coordinateToTile(lon, lat, MapterhornTileShort.ZOOM_LEVEL);
+
+    if (Objects.equals(lastTile, tile)) {
+      return lastMpt;
+    }
+
+    lastTile = tile;
+    lastMpt = mptmap.get(tile);
+    if (lastMpt == null && !mptmap.containsKey(tile)) {
+      //System.out.println("Opening Tile " + tile);
+      lastMpt = MapterhornTileShort.getTile(mptDir, tile.x(), tile.y());
+      //mptmap.put(tile, lastMpt);
+      //System.out.println("size: " + mptmap.size());
+    }
+
+    return lastMpt;
+
+  }
+
   /**
    * get the srtm data set for a position srtm coords are
    * srtm_<srtmLon>_<srtmLat> where srtmLon = 180 + lon, srtmLat = 60 - lat
@@ -212,6 +268,7 @@ public class PosUnifier extends MapCreatorBase {
 
     lastSrtmRaster = srtmmap.get(filename);
     if (lastSrtmRaster == null && !srtmmap.containsKey(filename)) {
+      System.out.println("Opening " + filename);
       File f = new File(new File(srtmdir), filename + ".bef");
       if (f.exists()) {
         try {
@@ -312,6 +369,11 @@ public class PosUnifier extends MapCreatorBase {
     lastSrtmLonIdx = -1;
     lastSrtmLatIdx = -1;
     lastSrtmRaster = null;
+
+    //mpt
+    mptmap = new HashMap<>();
+    lastTile = null;
+    lastMpt = null;
   }
 
 }

@@ -1601,6 +1601,7 @@ public class RoutingEngine extends Thread {
     if (nodesCache != null) {
       int r = nodesCache.getElevationType(n.getILon(), n.getILat());
       if (r == 1) return -5.;
+      if (r == 7) return -2.; // Lidar
     }
     return -10.;
   }
